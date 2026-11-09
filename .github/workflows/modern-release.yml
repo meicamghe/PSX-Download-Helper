@@ -50,6 +50,9 @@ jobs:
           dotnet publish $project --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false --output $packageRoot
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed." }
 
+          $appExecutable = Join-Path $packageRoot "PSXDownloadHelper.Modern.exe"
+          if (-not (Test-Path $appExecutable)) { throw "Published application executable was not found." }
+
           Copy-Item "Modern/README.md" (Join-Path $packageRoot "README.md")
           Copy-Item "LICENSE" (Join-Path $packageRoot "LICENSE")
 
