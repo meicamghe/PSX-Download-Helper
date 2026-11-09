@@ -86,8 +86,9 @@ Open **Offline URLs** from the main window. The manager supports JSON import/exp
 Each rule maps one exact HTTP URL to another HTTP mirror URL. Optional
 `hostHeader` and `cookie` fields reproduce the legacy offline-request
 behavior where a mirror expects a specific Host header or Cookie value.
-Higher priority rules are checked first; matching is exact for scheme, host,
-port, path and query string (path matching is case-sensitive).
+Matching is exact for scheme, host, port, path and query string (path matching
+is case-sensitive). Duplicate source URLs are rejected, so priority is retained
+as rule metadata but does not select between multiple mappings for the same URL.
 
 Example:
 
@@ -114,7 +115,7 @@ not intercept TLS. Only use mirror URLs and cookies that you trust.
 
 ## CI validation
 
-The .NET 10 solution and proxy integration tests passed on GitHub Actions in run [#42674889958](https://github.com/meicamghe/PSX-Download-Helper/actions/runs/42674889958) after the 2.5.0 chunked-request support fixes.
+The .NET 10 solution and proxy integration tests passed on GitHub Actions in run [#42675987113](https://github.com/meicamghe/PSX-Download-Helper/actions/runs/42675987113) after the HTTP framing validation changes.
 
 ## Architecture roadmap
 
@@ -123,7 +124,7 @@ The .NET 10 solution and proxy integration tests passed on GitHub Actions in run
 3. CDN host/path rules with deterministic matching, validation and import/export.
 4. Offline URL rule migration and settings persistence.
 5. Wi-Fi Hosted Network compatibility helper with explicit Windows capability checks (implemented; hardware/OS runtime validation pending).
-6. Legacy settings migration, automated unit/integration tests and signed release packaging.
+6. Expand legacy settings migration coverage, validate Wi-Fi behavior on supported hardware, and add signed release packaging.
 
 ## License
 
@@ -140,8 +141,4 @@ The import action is explicit and does not overwrite the source XML. Review the 
 
 ## Automated tests
 
-The `Modern/PSXDownloadHelper.Modern.Tests` project contains loopback integration
-tests for HTTP forwarding, streaming chunked request bodies and trailers, and
-rejection of ambiguous framing (duplicate `Content-Length` or
-`Transfer-Encoding`, and unsupported transfer codings). GitHub Actions builds
-the WinForms solution and runs these tests on Windows with the .NET 10 SDK.
+The `Modern/PSXDownloadHelper.Modern.Tests` project contains loopback proxy integration tests and isolated rule-store tests. Coverage includes chunked request forwarding and trailers, ambiguous HTTP framing rejection, CDN priority and wildcard host matching, path-boundary and traversal validation, exact offline URL matching, duplicate detection, persistence, and unsafe header rejection. Rule stores accept an optional configuration path internally so tests use isolated temporary files rather than modifying the user's real settings. GitHub Actions builds the WinForms solution and runs all tests on Windows with the .NET 10 SDK.

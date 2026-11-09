@@ -4,13 +4,17 @@ namespace PSXDownloadHelper.Modern;
 
 internal sealed class CdnRuleStore
 {
-    private readonly string _path = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "PSXDownloadHelper", "cdn-rules.json");
+    private readonly string _path;
+
+    public CdnRuleStore(string? configPath = null)
+    {
+        _path = configPath ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PSXDownloadHelper", "cdn-rules.json");
+        EnsureConfig();
+    }
 
     public string ConfigPath => _path;
-
-    public CdnRuleStore() => EnsureConfig();
 
     public List<CdnRule> Load()
     {
@@ -125,8 +129,10 @@ internal sealed class CdnRule
 
     private static string JoinPath(string prefix, string remainder)
     {
-        var left = prefix.TrimEnd('/');
-        return "/" + (left.Length == 0 ? "" : left + "/") + remainder;
+        // Normalize both sides to avoid producing a double-leading slash when
+        // TargetPathPrefix already starts with '/'.
+        var left = prefix.Trim('/');
+        return "/" + (left.Length == 0 ? "" : left + "/") + remainder.TrimStart('/');
     }
 
     private static string NormalizePrefix(string? value)
@@ -136,7 +142,11 @@ internal sealed class CdnRule
             result = "/" + result;
         if (result.Contains('\\') || result.Split('/').Any(segment => segment is "." or ".."))
             throw new InvalidDataException("Path prefixes cannot contain traversal segments or backslashes.");
-        return result;
+
+        // A trailing slash does not change prefix matching semantics; canonicalize it
+        // so equivalent rules are detected as duplicates during Save.
+        result = result.TrimEnd('/');
+        return result.Length == 0 ? "/" : result;
     }
 
     private static string NormalizeHost(string? value)
