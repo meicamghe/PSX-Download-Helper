@@ -9,8 +9,13 @@ project files intact. It is intentionally separate from the modern rewrite.
 - .NET Framework 4.0 targeting pack
 - Open `PSXDownloadHelper/PSSDownloadHelper.sln` and build Release
 
-A Windows GitHub Actions workflow builds the original solution on pushes and
-pull requests. This workflow verifies compilation; it does not certify runtime
+A Windows GitHub Actions workflow builds the legacy projects on pushes and pull
+requests. The original WinForms UI project currently references
+`PSXDownloadHelper/PSXDownloadHelper/Reference/MetroStyle.dll`, but that binary
+is not present in the repository. CI therefore builds the other legacy projects
+and reports the missing UI dependency as a warning instead of silently
+substituting a different control library. A full UI build requires the original
+redistributable MetroStyle assembly. CI compilation does not certify runtime
 behavior on every Windows version.
 
 ## Compatibility policy
