@@ -83,7 +83,7 @@ public sealed class ProxyServerTests
 
             Assert.Contains("HTTP/1.1 200 OK", responseText, StringComparison.Ordinal);
             Assert.Contains("Transfer-Encoding: chunked", upstreamResult.header, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Wiki\\r\\n5\\r\\npedia", upstreamResult.receivedBody, StringComparison.Ordinal);
+            Assert.Contains("Wiki\r\n5\r\npedia", upstreamResult.receivedBody, StringComparison.Ordinal);
             Assert.Contains("X-Checksum: demo", upstreamResult.receivedBody, StringComparison.Ordinal);
         }
         finally
