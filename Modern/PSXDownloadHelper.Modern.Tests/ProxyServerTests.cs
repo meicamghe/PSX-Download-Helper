@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Xunit;
 using PSXDownloadHelper.Modern;
 
 namespace PSXDownloadHelper.Modern.Tests;
