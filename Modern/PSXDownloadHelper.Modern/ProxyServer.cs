@@ -153,19 +153,32 @@ internal sealed class ProxyServer
                 if (matchedRule is not null)
                     Log?.Invoke($"CDN rule '{matchedRule}': {beforeCdnTarget.Host}{beforeCdnTarget.AbsolutePath} -> {target.Host}{target.AbsolutePath}");
 
-                var transferEncoding = GetHeaderValue(headerText, "Transfer-Encoding");
-                var isChunked = !string.IsNullOrWhiteSpace(transferEncoding) &&
-                    transferEncoding.Split(',').Any(value => value.Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase));
-                long requestBodyLength = 0;
-                if (!isChunked && !TryGetContentLength(headerText, out requestBodyLength))
+                var transferEncodingValues = GetHeaderValues(headerText, "Transfer-Encoding");
+                var contentLengthValues = GetHeaderValues(headerText, "Content-Length");
+                if (transferEncodingValues.Count > 1 || contentLengthValues.Count > 1)
                 {
-                    await WriteErrorAsync(clientStream, 400, "Invalid Content-Length", linked.Token).ConfigureAwait(false);
+                    await WriteErrorAsync(clientStream, 400, "Duplicate framing headers are not allowed", linked.Token).ConfigureAwait(false);
                     return;
                 }
 
-                if (isChunked && GetHeaderValue(headerText, "Content-Length") is not null)
+                var transferEncoding = transferEncodingValues.SingleOrDefault();
+                var isChunked = string.Equals(transferEncoding, "chunked", StringComparison.OrdinalIgnoreCase);
+                if (transferEncoding is not null && !isChunked)
+                {
+                    await WriteErrorAsync(clientStream, 501, "Unsupported Transfer-Encoding", linked.Token).ConfigureAwait(false);
+                    return;
+                }
+
+                long requestBodyLength = 0;
+                if (isChunked && contentLengthValues.Count > 0)
                 {
                     await WriteErrorAsync(clientStream, 400, "Content-Length cannot be combined with Transfer-Encoding", linked.Token).ConfigureAwait(false);
+                    return;
+                }
+
+                if (!isChunked && !TryGetContentLength(headerText, out requestBodyLength))
+                {
+                    await WriteErrorAsync(clientStream, 400, "Invalid Content-Length", linked.Token).ConfigureAwait(false);
                     return;
                 }
 
@@ -237,6 +250,18 @@ internal sealed class ProxyServer
                 return line[(separator + 1)..].Trim();
         }
         return null;
+    }
+
+    private static List<string> GetHeaderValues(string rawHeader, string name)
+    {
+        var values = new List<string>();
+        foreach (var line in rawHeader.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Skip(1))
+        {
+            var separator = line.IndexOf(':');
+            if (separator > 0 && line[..separator].Trim().Equals(name, StringComparison.OrdinalIgnoreCase))
+                values.Add(line[(separator + 1)..].Trim());
+        }
+        return values;
     }
 
     private static bool TryGetContentLength(string rawHeader, out long length)
