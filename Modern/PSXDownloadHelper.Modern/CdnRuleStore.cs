@@ -140,7 +140,11 @@ internal sealed class CdnRule
             result = "/" + result;
         if (result.Contains('\\') || result.Split('/').Any(segment => segment is "." or ".."))
             throw new InvalidDataException("Path prefixes cannot contain traversal segments or backslashes.");
-        return result;
+
+        // A trailing slash does not change prefix matching semantics; canonicalize it
+        // so equivalent rules are detected as duplicates during Save.
+        result = result.TrimEnd('/');
+        return result.Length == 0 ? "/" : result;
     }
 
     private static string NormalizeHost(string? value)
