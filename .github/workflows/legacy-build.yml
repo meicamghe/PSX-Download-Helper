@@ -28,9 +28,18 @@ jobs:
           $referenceRoot = Join-Path "$env:RUNNER_TEMP\reference-assemblies\Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3" "build"
           if (-not (Test-Path (Join-Path $referenceRoot ".NETFramework\v4.0"))) { throw "Reference assemblies package layout was not found: $referenceRoot" }
           "LEGACY_REFERENCE_ROOT=$referenceRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Build original .NET Framework solution
+      - name: Build original .NET Framework projects
         shell: pwsh
         run: |
-          $solution = "PSXDownloadHelper/PSSDownloadHelper.sln"
-          if (-not (Test-Path $solution)) { throw "Solution not found: $solution" }
-          msbuild $solution /m /p:Configuration=Release /p:RestorePackages=false "/p:TargetFrameworkRootPath=$env:LEGACY_REFERENCE_ROOT" /verbosity:minimal
+          $projects = Get-ChildItem -Path "PSXDownloadHelper" -Filter "*.csproj" -Recurse |
+            Where-Object { $_.Name -ne "PSXDownloadHelperUI.csproj" }
+          if (-not $projects) { throw "No legacy project files were found." }
+          foreach ($project in $projects) {
+            Write-Host "Building $($project.FullName)"
+            msbuild $project.FullName /m /p:Configuration=Release /p:RestorePackages=false "/p:TargetFrameworkRootPath=$env:LEGACY_REFERENCE_ROOT" /verbosity:minimal
+            if ($LASTEXITCODE -ne 0) { throw "Build failed: $($project.FullName)" }
+          }
+          $metroAssembly = "PSXDownloadHelper/PSXDownloadHelper/Reference/MetroStyle.dll"
+          if (-not (Test-Path $metroAssembly)) {
+            Write-Warning "The legacy WinForms UI was not built: the repository references MetroStyle.dll but does not contain that binary. Supply the original licensed/redistributable assembly to enable a full UI build."
+          }
