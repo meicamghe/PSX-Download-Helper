@@ -156,7 +156,8 @@ internal sealed class ProxyServer
                 var transferEncoding = GetHeaderValue(headerText, "Transfer-Encoding");
                 var isChunked = !string.IsNullOrWhiteSpace(transferEncoding) &&
                     transferEncoding.Split(',').Any(value => value.Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase));
-                if (!isChunked && !TryGetContentLength(headerText, out _))
+                long requestBodyLength = 0;
+                if (!isChunked && !TryGetContentLength(headerText, out requestBodyLength))
                 {
                     await WriteErrorAsync(clientStream, 400, "Invalid Content-Length", linked.Token).ConfigureAwait(false);
                     return;
@@ -167,8 +168,6 @@ internal sealed class ProxyServer
                     await WriteErrorAsync(clientStream, 400, "Content-Length cannot be combined with Transfer-Encoding", linked.Token).ConfigureAwait(false);
                     return;
                 }
-
-                var requestBodyLength = isChunked ? 1L : GetContentLength(headerText);
 
                 Log?.Invoke($"HTTP {target.Host}:{target.Port} {target.PathAndQuery}");
                 using var upstream = new TcpClient();
