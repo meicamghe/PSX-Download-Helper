@@ -1,0 +1,28 @@
+name: Legacy .NET Framework build
+
+on:
+  push:
+    branches: [master, "maintenance/**"]
+    paths:
+      - "PSXDownloadHelper/**"
+      - ".github/workflows/legacy-build.yml"
+  pull_request:
+    paths:
+      - "PSXDownloadHelper/**"
+      - ".github/workflows/legacy-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build original .NET Framework solution
+        shell: pwsh
+        run: |
+          $solution = "PSXDownloadHelper/PSSDownloadHelper.sln"
+          if (-not (Test-Path $solution)) { throw "Solution not found: $solution" }
+          msbuild $solution /m /p:Configuration=Release /p:RestorePackages=false /verbosity:minimal
