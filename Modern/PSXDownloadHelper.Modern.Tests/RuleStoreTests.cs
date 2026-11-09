@@ -41,8 +41,8 @@ public sealed class RuleStoreTests
         using var temp = new TemporaryDirectory();
         var store = new CdnRuleStore(Path.Combine(temp.Path, "cdn.json"));
         store.Save([
-            Cdn("Low", "cdn.example.com", "low.example.net", "/assets", "/low", 10),
-            Cdn("High", "cdn.example.com", "fast.example.net", "/assets", "/v2", 100)
+            Cdn("Fallback", "cdn.example.com", "low.example.net", "/", "/low", 10),
+            Cdn("Assets", "cdn.example.com", "fast.example.net", "/assets", "/v2", 100)
         ]);
 
         var rewritten = store.Rewrite(
@@ -138,12 +138,10 @@ public sealed class RuleStoreTests
         using var temp = new TemporaryDirectory();
         var store = new OfflineUrlStore(Path.Combine(temp.Path, "offline.json"));
         store.Save([
-            Offline("Low", "http://download.example.com/game.pkg?region=eu",
-                "http://low.example.net/game.pkg", 1),
-            Offline("High", "http://download.example.com/game.pkg?region=eu",
+            Offline("Exact mirror", "http://download.example.com/game.pkg?region=eu",
                 "http://high.example.net/files/game.pkg?mirror=1", 100),
-            Offline("Disabled", "http://download.example.com/game.pkg?region=eu",
-                "http://disabled.example.net/game.pkg", 1000, enabled: false)
+            Offline("Unrelated higher priority", "http://download.example.com/other.pkg",
+                "http://disabled.example.net/other.pkg", 1000, enabled: false)
         ]);
 
         var matched = store.TryRewrite(
@@ -151,7 +149,7 @@ public sealed class RuleStoreTests
             out var rule, out var target);
 
         Assert.True(matched);
-        Assert.Equal("High", rule?.Name);
+        Assert.Equal("Exact mirror", rule?.Name);
         Assert.Equal("high.example.net", target.Host);
         Assert.Equal("/files/game.pkg", target.AbsolutePath);
         Assert.Equal("?mirror=1", target.Query);
@@ -169,6 +167,24 @@ public sealed class RuleStoreTests
             "http://mirror.example.net/game.pkg", 1).NormalizeAndValidate();
 
         Assert.False(rule.IsMatch(new Uri(value)));
+    }
+
+    [Fact]
+    public void OfflineDisabledRuleIsNotApplied()
+    {
+        using var temp = new TemporaryDirectory();
+        var store = new OfflineUrlStore(Path.Combine(temp.Path, "offline.json"));
+        store.Save([
+            Offline("Disabled", "http://download.example.com/game.pkg",
+                "http://mirror.example.net/game.pkg", 100, enabled: false)
+        ]);
+
+        var matched = store.TryRewrite(new Uri("http://download.example.com/game.pkg"),
+            out var rule, out var target);
+
+        Assert.False(matched);
+        Assert.Null(rule);
+        Assert.Equal("download.example.com", target.Host);
     }
 
     [Fact]
