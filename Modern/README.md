@@ -136,3 +136,8 @@ This derivative follows the repository's GPL-3.0 license. See the root
 The main window can import the legacy `app.config` / user-settings XML through **Import legacy settings**. The importer reads the legacy proxy listen address and port (falling back to loopback and port 8080 when invalid), and preserves language, theme and selected feature flags in `%LOCALAPPDATA%\\PSXDownloadHelper\\settings.json`. Cookie values and the legacy Wi-Fi access-point password are intentionally excluded; they are credentials and are not migrated. The importer does not automatically enable legacy CDN/offline behavior: existing CDN and Offline URL managers remain independently controlled.
 
 The import action is explicit and does not overwrite the source XML. Review the imported address before starting the proxy; non-loopback listeners can expose the proxy to other devices on the network.
+
+
+## Automated tests
+
+The `Modern/PSXDownloadHelper.Modern.Tests` project contains loopback integration tests for HTTP forwarding and explicit rejection of chunked request bodies. GitHub Actions builds the WinForms solution and runs these tests on Windows with the .NET 10 SDK.
