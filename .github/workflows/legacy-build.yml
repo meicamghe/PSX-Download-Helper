@@ -20,6 +20,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
       - name: Build original .NET Framework solution
         shell: pwsh
         run: |
