@@ -48,7 +48,7 @@ public sealed class RuleStoreTests
         var rewritten = store.Rewrite(
             new Uri("http://cdn.example.com:8080/assets/game.pkg?region=eu"), out var name);
 
-        Assert.Equal("High", name);
+        Assert.Equal("Assets", name);
         Assert.Equal("fast.example.net", rewritten.Host);
         Assert.Equal(8080, rewritten.Port);
         Assert.Equal("/v2/game.pkg", rewritten.AbsolutePath);
