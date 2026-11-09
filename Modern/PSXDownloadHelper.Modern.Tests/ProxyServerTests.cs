@@ -47,8 +47,25 @@ public sealed class ProxyServerTests
     }
 
     [Fact]
-    public async Task RejectsChunkedRequestBodiesWithNotImplemented()
+    public async Task ForwardsChunkedRequestBodyAndTrailers()
     {
+        using var upstream = new TcpListener(IPAddress.Loopback, 0);
+        upstream.Start();
+        var upstreamPort = ((IPEndPoint)upstream.LocalEndpoint).Port;
+        var upstreamTask = Task.Run(async () =>
+        {
+            using var accepted = await upstream.AcceptTcpClientAsync();
+            var stream = accepted.GetStream();
+            var header = Encoding.ASCII.GetString(await ReadHeaderAsync(stream));
+            using var body = new MemoryStream();
+            await ReadChunkedBodyAsync(stream, body);
+            var receivedBody = Encoding.ASCII.GetString(body.ToArray());
+            var response = Encoding.ASCII.GetBytes(
+                "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK");
+            await stream.WriteAsync(response);
+            return (header, receivedBody);
+        });
+
         var proxyPort = GetFreePort();
         var proxy = new ProxyServer();
         await proxy.StartAsync(IPAddress.Loopback, proxyPort);
@@ -58,12 +75,16 @@ public sealed class ProxyServerTests
             await client.ConnectAsync(IPAddress.Loopback, proxyPort);
             var stream = client.GetStream();
             var request = Encoding.ASCII.GetBytes(
-                "POST http://127.0.0.1:9/upload HTTP/1.1\r\nHost: 127.0.0.1:9\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n");
+                $"POST http://127.0.0.1:{upstreamPort}/upload HTTP/1.1\r\nHost: 127.0.0.1:{upstreamPort}\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n" +
+                "4;source=test\r\nWiki\r\n5\r\npedia\r\n0\r\nX-Checksum: demo\r\n\r\n");
             await stream.WriteAsync(request);
             var responseText = await ReadToEndAsync(stream);
+            var upstreamResult = await upstreamTask;
 
-            Assert.Contains("HTTP/1.1 501", responseText, StringComparison.Ordinal);
-            Assert.Contains("Chunked request bodies are not supported", responseText, StringComparison.Ordinal);
+            Assert.Contains("HTTP/1.1 200 OK", responseText, StringComparison.Ordinal);
+            Assert.Contains("Transfer-Encoding: chunked", upstreamResult.header, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Wikipedia", upstreamResult.receivedBody, StringComparison.Ordinal);
+            Assert.Contains("X-Checksum: demo", upstreamResult.receivedBody, StringComparison.Ordinal);
         }
         finally
         {
@@ -90,6 +111,47 @@ public sealed class ProxyServerTests
                 return bytes;
         }
         return buffer.ToArray();
+    }
+
+    private static async Task ReadChunkedBodyAsync(Stream stream, Stream destination)
+    {
+        while (true)
+        {
+            var line = await ReadLineAsync(stream);
+            await destination.WriteAsync(Encoding.ASCII.GetBytes(line + "\r\n"));
+            var size = Convert.ToInt32(line.Split(';', 2)[0].Trim(), 16);
+            if (size == 0)
+            {
+                while (true)
+                {
+                    var trailer = await ReadLineAsync(stream);
+                    await destination.WriteAsync(Encoding.ASCII.GetBytes(trailer + "\r\n"));
+                    if (trailer.Length == 0) return;
+                }
+            }
+            var chunk = new byte[size];
+            await stream.ReadExactlyAsync(chunk);
+            await destination.WriteAsync(chunk);
+            var terminator = new byte[2];
+            await stream.ReadExactlyAsync(terminator);
+            await destination.WriteAsync(terminator);
+        }
+    }
+
+    private static async Task<string> ReadLineAsync(Stream stream)
+    {
+        using var buffer = new MemoryStream();
+        var one = new byte[1];
+        while (await stream.ReadAsync(one) == 1)
+        {
+            if (one[0] == 10)
+            {
+                var bytes = buffer.ToArray();
+                return Encoding.ASCII.GetString(bytes, 0, Math.Max(0, bytes.Length - 1));
+            }
+            buffer.WriteByte(one[0]);
+        }
+        throw new EndOfStreamException();
     }
 
     private static async Task<string> ReadToEndAsync(NetworkStream stream)
