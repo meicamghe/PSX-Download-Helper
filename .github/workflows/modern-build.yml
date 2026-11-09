@@ -2,7 +2,7 @@ name: Modern .NET build
 
 on:
   push:
-    branches: ["feature/modern-dotnet10", "modern"]
+    branches: ["master", "feature/modern-dotnet10", "modern"]
     paths:
       - "Modern/**"
       - ".github/workflows/modern-build.yml"
