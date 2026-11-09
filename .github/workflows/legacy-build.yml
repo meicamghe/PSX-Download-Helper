@@ -24,9 +24,9 @@ jobs:
       - name: Install .NET Framework 4.0 reference assemblies
         shell: pwsh
         run: |
-          nuget install Microsoft.NETFramework.ReferenceAssemblies.net40 -Version 1.0.3 -OutputDirectory "$env:RUNNER_TEMP\\reference-assemblies" -NonInteractive
-          $referenceRoot = Join-Path "$env:RUNNER_TEMP\\reference-assemblies\\Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3" "build"
-          if (-not (Test-Path (Join-Path $referenceRoot ".NETFramework\\v4.0"))) { throw "Reference assemblies package layout was not found: $referenceRoot" }
+          nuget install Microsoft.NETFramework.ReferenceAssemblies.net40 -Version 1.0.3 -OutputDirectory "$env:RUNNER_TEMP\reference-assemblies" -NonInteractive
+          $referenceRoot = Join-Path "$env:RUNNER_TEMP\reference-assemblies\Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3" "build"
+          if (-not (Test-Path (Join-Path $referenceRoot ".NETFramework\v4.0"))) { throw "Reference assemblies package layout was not found: $referenceRoot" }
           "LEGACY_REFERENCE_ROOT=$referenceRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build original .NET Framework solution
         shell: pwsh
