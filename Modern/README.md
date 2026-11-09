@@ -114,7 +114,7 @@ not intercept TLS. Only use mirror URLs and cookies that you trust.
 
 ## CI validation
 
-The .NET 10 solution built successfully on GitHub Actions in run [#42668994505](https://github.com/meicamghe/PSX-Download-Helper/actions/runs/42668994505) for the 2.3.0 offline URL manager milestone.
+The .NET 10 solution and proxy integration tests passed on GitHub Actions in run [#42674889958](https://github.com/meicamghe/PSX-Download-Helper/actions/runs/42674889958) after the 2.5.0 chunked-request support fixes.
 
 ## Architecture roadmap
 
@@ -140,4 +140,8 @@ The import action is explicit and does not overwrite the source XML. Review the 
 
 ## Automated tests
 
-The `Modern/PSXDownloadHelper.Modern.Tests` project contains loopback integration tests for HTTP forwarding and explicit rejection of chunked request bodies. GitHub Actions builds the WinForms solution and runs these tests on Windows with the .NET 10 SDK.
+The `Modern/PSXDownloadHelper.Modern.Tests` project contains loopback integration
+tests for HTTP forwarding, streaming chunked request bodies and trailers, and
+rejection of ambiguous framing (duplicate `Content-Length` or
+`Transfer-Encoding`, and unsupported transfer codings). GitHub Actions builds
+the WinForms solution and runs these tests on Windows with the .NET 10 SDK.
