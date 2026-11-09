@@ -140,8 +140,4 @@ The import action is explicit and does not overwrite the source XML. Review the 
 
 ## Automated tests
 
-The `Modern/PSXDownloadHelper.Modern.Tests` project contains loopback integration
-tests for HTTP forwarding, streaming chunked request bodies and trailers, and
-rejection of ambiguous framing (duplicate `Content-Length` or
-`Transfer-Encoding`, and unsupported transfer codings). GitHub Actions builds
-the WinForms solution and runs these tests on Windows with the .NET 10 SDK.
+The `Modern/PSXDownloadHelper.Modern.Tests` project contains loopback proxy integration tests and isolated rule-store tests. Coverage includes chunked request forwarding and trailers, ambiguous HTTP framing rejection, CDN priority and wildcard host matching, path-boundary and traversal validation, exact offline URL matching, duplicate detection, persistence, and unsafe header rejection. Rule stores accept an optional configuration path internally so tests use isolated temporary files rather than modifying the user's real settings. GitHub Actions builds the WinForms solution and runs all tests on Windows with the .NET 10 SDK.
