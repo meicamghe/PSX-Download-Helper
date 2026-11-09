@@ -94,10 +94,10 @@ public sealed class ProxyServerTests
     }
 
     [Theory]
-    [InlineData("Transfer-Encoding: gzip, chunked\\r\\n", "501")]
-    [InlineData("Transfer-Encoding: chunked\\r\\nContent-Length: 4\\r\\n", "400")]
-    [InlineData("Transfer-Encoding: chunked\\r\\nTransfer-Encoding: chunked\\r\\n", "400")]
-    [InlineData("Content-Length: 0\\r\\nContent-Length: 0\\r\\n", "400")]
+    [InlineData("Transfer-Encoding: gzip, chunked\r\n", "501")]
+    [InlineData("Transfer-Encoding: chunked\r\nContent-Length: 4\r\n", "400")]
+    [InlineData("Transfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n", "400")]
+    [InlineData("Content-Length: 0\r\nContent-Length: 0\r\n", "400")]
     public async Task RejectsAmbiguousOrUnsupportedRequestFraming(string framingHeaders, string expectedStatus)
     {
         var proxyPort = GetFreePort();
@@ -109,7 +109,7 @@ public sealed class ProxyServerTests
             await client.ConnectAsync(IPAddress.Loopback, proxyPort);
             var stream = client.GetStream();
             var request = Encoding.ASCII.GetBytes(
-                $"POST http://127.0.0.1:9/upload HTTP/1.1\\r\\nHost: 127.0.0.1:9\\r\\n{framingHeaders}Connection: close\\r\\n\\r\\n");
+                $"POST http://127.0.0.1:9/upload HTTP/1.1\r\nHost: 127.0.0.1:9\r\n{framingHeaders}Connection: close\r\n\r\n");
             await stream.WriteAsync(request);
             var responseText = await ReadToEndAsync(stream);
 
