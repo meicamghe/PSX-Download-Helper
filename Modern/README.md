@@ -8,7 +8,7 @@ is not modified by this edition.
 
 - New Windows Forms application targeting .NET 10.
 - Async local TCP proxy listener.
-- HTTP absolute-form forwarding.
+- HTTP absolute-form forwarding, including streaming chunked request bodies and trailers.
 - HTTPS `CONNECT` tunnelling (TLS remains end-to-end; this app does not decrypt it).
 - Request logging and configurable bind address / port.
 - Safe default: listen on `127.0.0.1` only.

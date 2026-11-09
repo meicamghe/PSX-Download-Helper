@@ -154,18 +154,21 @@ internal sealed class ProxyServer
                     Log?.Invoke($"CDN rule '{matchedRule}': {beforeCdnTarget.Host}{beforeCdnTarget.AbsolutePath} -> {target.Host}{target.AbsolutePath}");
 
                 var transferEncoding = GetHeaderValue(headerText, "Transfer-Encoding");
-                if (!string.IsNullOrWhiteSpace(transferEncoding) &&
-                    transferEncoding.Contains("chunked", StringComparison.OrdinalIgnoreCase))
-                {
-                    await WriteErrorAsync(clientStream, 501, "Chunked request bodies are not supported", linked.Token).ConfigureAwait(false);
-                    return;
-                }
-
-                if (!TryGetContentLength(headerText, out var requestBodyLength))
+                var isChunked = !string.IsNullOrWhiteSpace(transferEncoding) &&
+                    transferEncoding.Split(',').Any(value => value.Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase));
+                if (!isChunked && !TryGetContentLength(headerText, out _))
                 {
                     await WriteErrorAsync(clientStream, 400, "Invalid Content-Length", linked.Token).ConfigureAwait(false);
                     return;
                 }
+
+                if (isChunked && GetHeaderValue(headerText, "Content-Length") is not null)
+                {
+                    await WriteErrorAsync(clientStream, 400, "Content-Length cannot be combined with Transfer-Encoding", linked.Token).ConfigureAwait(false);
+                    return;
+                }
+
+                var requestBodyLength = isChunked ? 1L : GetContentLength(headerText);
 
                 Log?.Invoke($"HTTP {target.Host}:{target.Port} {target.PathAndQuery}");
                 using var upstream = new TcpClient();
@@ -177,12 +180,14 @@ internal sealed class ProxyServer
                 await upstreamStream.WriteAsync(bytes, linked.Token).ConfigureAwait(false);
 
                 if (GetHeaderValue(headerText, "Expect")?.Equals("100-continue", StringComparison.OrdinalIgnoreCase) == true &&
-                    requestBodyLength > 0)
+                    (isChunked || requestBodyLength > 0))
                 {
                     await clientStream.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 100 Continue\r\n\r\n"), linked.Token).ConfigureAwait(false);
                 }
 
-                if (requestBodyLength > 0)
+                if (isChunked)
+                    await CopyChunkedBodyAsync(clientStream, upstreamStream, linked.Token).ConfigureAwait(false);
+                else if (requestBodyLength > 0)
                     await CopyExactlyAsync(clientStream, upstreamStream, requestBodyLength, linked.Token).ConfigureAwait(false);
 
                 await upstreamStream.CopyToAsync(clientStream, linked.Token).ConfigureAwait(false);
@@ -245,6 +250,73 @@ internal sealed class ProxyServer
         }
         return long.TryParse(value, out length) && length >= 0;
     }
+
+    private static async Task CopyChunkedBodyAsync(Stream source, Stream destination, CancellationToken token)
+    {
+        while (true)
+        {
+            var sizeLine = await ReadCrlfLineAsync(source, token).ConfigureAwait(false);
+            var sizeText = sizeLine.Split(';', 2)[0].Trim();
+            if (!long.TryParse(sizeText, System.Globalization.NumberStyles.HexNumber,
+                    System.Globalization.CultureInfo.InvariantCulture, out var chunkSize) || chunkSize < 0)
+                throw new InvalidDataException("Invalid chunk size in request body.");
+
+            await WriteAsciiAsync(destination, sizeLine + "\r\n", token).ConfigureAwait(false);
+            if (chunkSize == 0)
+            {
+                while (true)
+                {
+                    var trailer = await ReadCrlfLineAsync(source, token).ConfigureAwait(false);
+                    await WriteAsciiAsync(destination, trailer + "\r\n", token).ConfigureAwait(false);
+                    if (trailer.Length == 0)
+                        return;
+                }
+            }
+
+            await CopyExactlyAsync(source, destination, chunkSize, token).ConfigureAwait(false);
+            var terminator = new byte[2];
+            await ReadExactlyAsync(source, terminator, token).ConfigureAwait(false);
+            if (terminator[0] != 13 || terminator[1] != 10)
+                throw new InvalidDataException("Invalid chunk terminator in request body.");
+            await destination.WriteAsync(terminator, token).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<string> ReadCrlfLineAsync(Stream stream, CancellationToken token)
+    {
+        using var buffer = new MemoryStream();
+        var one = new byte[1];
+        while (buffer.Length <= 8192)
+        {
+            var read = await stream.ReadAsync(one, token).ConfigureAwait(false);
+            if (read == 0)
+                throw new EndOfStreamException("Request ended inside a chunked body.");
+            if (one[0] == 10)
+            {
+                var bytes = buffer.ToArray();
+                if (bytes.Length == 0 || bytes[^1] != 13)
+                    throw new InvalidDataException("Chunked body lines must end with CRLF.");
+                return Encoding.ASCII.GetString(bytes, 0, bytes.Length - 1);
+            }
+            buffer.WriteByte(one[0]);
+        }
+        throw new InvalidDataException("Chunked body line exceeds 8 KiB.");
+    }
+
+    private static async Task ReadExactlyAsync(Stream source, Memory<byte> buffer, CancellationToken token)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = await source.ReadAsync(buffer[offset..], token).ConfigureAwait(false);
+            if (read == 0)
+                throw new EndOfStreamException("Request ended inside a chunked body.");
+            offset += read;
+        }
+    }
+
+    private static Task WriteAsciiAsync(Stream destination, string value, CancellationToken token) =>
+        destination.WriteAsync(Encoding.ASCII.GetBytes(value), token).AsTask();
 
     private static async Task CopyExactlyAsync(Stream source, Stream destination, long bytesToCopy, CancellationToken token)
     {
