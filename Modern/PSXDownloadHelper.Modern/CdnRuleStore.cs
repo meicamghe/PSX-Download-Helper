@@ -129,8 +129,10 @@ internal sealed class CdnRule
 
     private static string JoinPath(string prefix, string remainder)
     {
-        var left = prefix.TrimEnd('/');
-        return "/" + (left.Length == 0 ? "" : left + "/") + remainder;
+        // Normalize both sides to avoid producing a double-leading slash when
+        // TargetPathPrefix already starts with '/'.
+        var left = prefix.Trim('/');
+        return "/" + (left.Length == 0 ? "" : left + "/") + remainder.TrimStart('/');
     }
 
     private static string NormalizePrefix(string? value)
